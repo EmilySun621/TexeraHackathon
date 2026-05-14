@@ -53,10 +53,34 @@ export const DEFAULT_GUARDRAILS: Guardrail[] = [
     description: 'Apply filters early in the pipeline to reduce data volume',
     enabled: true,
   },
+  {
+    id: 'train-test-split',
+    name: 'Mandatory Train/Test Split',
+    description: 'For Predictive Modeling, ALWAYS insert a Split operator (e.g., 80/20) BEFORE any modeling operator. Train on the training partition only.',
+    enabled: true,
+  },
+  {
+    id: 'data-leakage',
+    name: 'Prevent Data Leakage',
+    description: 'Never apply transformations fit on the full dataset to the test partition. Any sampling, scaling, or feature engineering that uses dataset statistics must be done AFTER the train/test split, fit on training data only.',
+    enabled: true,
+  },
+  {
+    id: 'evaluation',
+    name: 'Mandatory Evaluation',
+    description: 'For Predictive Modeling, ALWAYS include at least one evaluation operator (e.g., Scatterplot of predicted vs. actual, or an aggregate of error metrics) on the test-set predictions.',
+    enabled: true,
+  },
+  {
+    id: 'no-synthetic-data',
+    name: 'No Synthetic Data by Default',
+    description: 'Do NOT introduce synthetic samples (e.g., SMOTE-style oversampling, generated rows) unless the user explicitly requests it. Class imbalance should be reported, not silently fixed.',
+    enabled: true,
+  },
 ];
 
 /**
- * Get guardrails rules as a prompt string for Claude
+ * Get guardrails rules as a prompt string for the LLM
  */
 export function getGuardrailsPrompt(guardrails: Guardrail[]): string {
   const enabledGuardrails = guardrails.filter(g => g.enabled);

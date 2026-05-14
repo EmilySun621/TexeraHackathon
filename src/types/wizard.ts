@@ -11,7 +11,16 @@ export type AnalysisGoal =
 export type DataSource =
   | 'CSV Upload'
   | 'Database'
-  | 'API';
+  | 'API'
+  | 'dkNET Dataset';
+
+export interface DknetDataset {
+  id: string;
+  name: string;
+  description: string;
+  fileName: string;
+  schema: string;
+}
 
 export type ScientificFramework =
   | 'CRISP-DM'
@@ -44,6 +53,7 @@ export interface WizardState {
     method: 'GET' | 'POST';
     headers?: Record<string, string>;
   };
+  dknetDataset?: DknetDataset;
 }
 
 export interface ValidationError {

@@ -1,18 +1,125 @@
-.App {
+/* App shell — Claude-style warm cream layout */
+
+.app-shell {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 1rem;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.app-header {
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 3.5rem 2rem 1.25rem;
+  text-align: left;
 }
 
-* {
-  box-sizing: border-box;
+.app-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.app-title-mark {
+  font-family: var(--serif);
+  font-size: 2.2rem;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.app-title h1 {
+  font-size: 2.25rem;
+  line-height: 1.2;
+  padding-bottom: 0.15em;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.app-tagline {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  max-width: 60ch;
+}
+
+/* Mode tabs */
+.mode-tabs {
+  max-width: 920px;
+  width: 100%;
+  margin: 1rem auto 0;
+  padding: 0 2rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mode-tab {
+  flex: 1 1 200px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.mode-tab:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.mode-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mode-tab.active .mode-tab-icon {
+  background: var(--accent);
+  color: white;
+}
+
+.mode-tab-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.mode-tab-label strong {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+
+.mode-tab-label small {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.app-main {
+  flex: 1;
+  padding: 0 2rem 4rem;
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
 }

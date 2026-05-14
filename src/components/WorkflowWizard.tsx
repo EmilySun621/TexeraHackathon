@@ -1,18 +1,22 @@
 /**
- * 4-Step Workflow Wizard Component
+ * 4-Step Workflow Wizard Component.
+ * Post-generation UI (Why panel, NL edit, attempts log, download) is in
+ * WorkflowResultPanel and shared with the other modes.
  */
 
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Wand2, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Wand2, AlertCircle } from 'lucide-react';
 import type { WizardState, AnalysisGoal, DataSource, ScientificFramework } from '../types/wizard';
 import type { WorkflowContent } from '../types/workflow';
 import { DEFAULT_GUARDRAILS } from '../data/guardrails';
+import type { AttemptLog, GeneratedWorkflow } from '../utils/workflowGenerator';
 import { generateWorkflow } from '../utils/workflowGenerator';
-import { validateWorkflow } from '../utils/workflowValidator';
+import { DKNET_DATASETS } from '../data/dknetDatasets';
+import { WorkflowResultPanel } from './WorkflowResultPanel';
 import './WorkflowWizard.css';
 
 const ANALYSIS_GOALS: AnalysisGoal[] = ['EDA', 'Predictive Modeling', 'Data Cleaning', 'NLP'];
-const DATA_SOURCES: DataSource[] = ['CSV Upload', 'Database', 'API'];
+const DATA_SOURCES: DataSource[] = ['CSV Upload', 'Database', 'API', 'dkNET Dataset'];
 const FRAMEWORKS: ScientificFramework[] = ['CRISP-DM', 'SEMMA', 'KDD'];
 
 export const WorkflowWizard: React.FC = () => {
@@ -22,6 +26,8 @@ export const WorkflowWizard: React.FC = () => {
   });
 
   const [generatedWorkflow, setGeneratedWorkflow] = useState<WorkflowContent | null>(null);
+  const [whyExplanations, setWhyExplanations] = useState<Record<string, string>>({});
+  const [attempts, setAttempts] = useState<AttemptLog[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,38 +36,26 @@ export const WorkflowWizard: React.FC = () => {
   };
 
   const nextStep = () => {
-    if (wizardState.step < 4) {
-      updateState({ step: wizardState.step + 1 });
-    }
+    if (wizardState.step < 4) updateState({ step: wizardState.step + 1 });
   };
 
   const prevStep = () => {
-    if (wizardState.step > 1) {
-      updateState({ step: wizardState.step - 1 });
-    }
+    if (wizardState.step > 1) updateState({ step: wizardState.step - 1 });
   };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
+    setAttempts([]);
 
     try {
-      const workflow = await generateWorkflow(wizardState);
-
-      // Validate the generated workflow
-      const validation = validateWorkflow(workflow);
-
-      if (!validation.isValid) {
-        const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join('\n');
-        throw new Error(`Generated workflow has validation errors:\n${errorMessages}`);
-      }
-
-      if (validation.warnings && validation.warnings.length > 0) {
-        console.warn('Workflow warnings:', validation.warnings);
-      }
-
-      setGeneratedWorkflow(workflow);
+      const result = await generateWorkflow(wizardState);
+      setGeneratedWorkflow(result.workflow);
+      setWhyExplanations(result.whyExplanations);
+      setAttempts(result.attempts);
     } catch (err) {
+      const log = (err as any)?.attempts as AttemptLog[] | undefined;
+      if (log) setAttempts(log);
       setError(err instanceof Error ? err.message : 'Failed to generate workflow');
       console.error('Generation error:', err);
     } finally {
@@ -69,32 +63,17 @@ export const WorkflowWizard: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
-    if (!generatedWorkflow) return;
-
-    const json = JSON.stringify(generatedWorkflow, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `texera-workflow-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleWorkflowUpdated = (updated: GeneratedWorkflow) => {
+    setGeneratedWorkflow(updated.workflow);
+    setWhyExplanations(updated.whyExplanations);
+    setAttempts(updated.attempts);
   };
 
   return (
     <div className="wizard-container">
-      <div className="wizard-header">
-        <h1>Texera AI Workflow Copilot</h1>
-        <p>Generate data analysis workflows powered by Claude AI</p>
-      </div>
-
       <div className="wizard-progress">
         {[1, 2, 3, 4].map(step => (
-          <div
-            key={step}
-            className={`progress-step ${wizardState.step >= step ? 'active' : ''}`}
-          >
+          <div key={step} className={`progress-step ${wizardState.step >= step ? 'active' : ''}`}>
             <div className="step-circle">{step}</div>
             <div className="step-label">
               {step === 1 && 'Analysis Goal'}
@@ -108,10 +87,7 @@ export const WorkflowWizard: React.FC = () => {
 
       <div className="wizard-content">
         {wizardState.step === 1 && (
-          <Step1AnalysisGoal
-            selected={wizardState.analysisGoal}
-            onSelect={goal => updateState({ analysisGoal: goal })}
-          />
+          <Step1AnalysisGoal selected={wizardState.analysisGoal} onSelect={goal => updateState({ analysisGoal: goal })} />
         )}
 
         {wizardState.step === 2 && (
@@ -124,19 +100,14 @@ export const WorkflowWizard: React.FC = () => {
         )}
 
         {wizardState.step === 3 && (
-          <Step3Framework
-            selected={wizardState.framework}
-            onSelect={framework => updateState({ framework })}
-          />
+          <Step3Framework selected={wizardState.framework} onSelect={framework => updateState({ framework })} />
         )}
 
         {wizardState.step === 4 && (
           <Step4Guardrails
             guardrails={wizardState.guardrails}
             onToggle={id => {
-              const updated = wizardState.guardrails.map(g =>
-                g.id === id ? { ...g, enabled: !g.enabled } : g
-              );
+              const updated = wizardState.guardrails.map(g => (g.id === id ? { ...g, enabled: !g.enabled } : g));
               updateState({ guardrails: updated });
             }}
           />
@@ -152,11 +123,7 @@ export const WorkflowWizard: React.FC = () => {
         )}
 
         {wizardState.step < 4 && (
-          <button
-            onClick={nextStep}
-            className="btn btn-primary"
-            disabled={!canProceed(wizardState)}
-          >
+          <button onClick={nextStep} className="btn btn-primary" disabled={!canProceed(wizardState)}>
             Next
             <ChevronRight size={20} />
           </button>
@@ -182,30 +149,12 @@ export const WorkflowWizard: React.FC = () => {
       )}
 
       {generatedWorkflow && (
-        <div className="workflow-result">
-          <div className="result-header">
-            <CheckCircle size={24} color="#10b981" />
-            <h2>Workflow Generated Successfully!</h2>
-          </div>
-          <div className="result-stats">
-            <div className="stat">
-              <span className="stat-value">{generatedWorkflow.operators.length}</span>
-              <span className="stat-label">Operators</span>
-            </div>
-            <div className="stat">
-              <span className="stat-value">{generatedWorkflow.links.length}</span>
-              <span className="stat-label">Links</span>
-            </div>
-          </div>
-          <button onClick={handleDownload} className="btn btn-primary">
-            <Download size={20} />
-            Download Workflow JSON
-          </button>
-          <details className="workflow-preview">
-            <summary>Preview Workflow JSON</summary>
-            <pre>{JSON.stringify(generatedWorkflow, null, 2)}</pre>
-          </details>
-        </div>
+        <WorkflowResultPanel
+          workflow={generatedWorkflow}
+          whyExplanations={whyExplanations}
+          attempts={attempts}
+          onWorkflowUpdated={handleWorkflowUpdated}
+        />
       )}
     </div>
   );
@@ -239,11 +188,7 @@ const Step1AnalysisGoal: React.FC<Step1Props> = ({ selected, onSelect }) => {
       <p>What do you want to accomplish with your data?</p>
       <div className="options-grid">
         {ANALYSIS_GOALS.map(goal => (
-          <div
-            key={goal}
-            className={`option-card ${selected === goal ? 'selected' : ''}`}
-            onClick={() => onSelect(goal)}
-          >
+          <div key={goal} className={`option-card ${selected === goal ? 'selected' : ''}`} onClick={() => onSelect(goal)}>
             <h3>{goal}</h3>
             <p>{descriptions[goal]}</p>
           </div>
@@ -267,11 +212,7 @@ const Step2DataSource: React.FC<Step2Props> = ({ selected, onSelect, wizardState
       <p>Where is your data located?</p>
       <div className="options-grid">
         {DATA_SOURCES.map(source => (
-          <div
-            key={source}
-            className={`option-card ${selected === source ? 'selected' : ''}`}
-            onClick={() => onSelect(source)}
-          >
+          <div key={source} className={`option-card ${selected === source ? 'selected' : ''}`} onClick={() => onSelect(source)}>
             <h3>{source}</h3>
           </div>
         ))}
@@ -287,11 +228,30 @@ const Step2DataSource: React.FC<Step2Props> = ({ selected, onSelect, wizardState
               onChange={e => updateState({ csvFile: e.target.files?.[0] })}
             />
           </label>
-          {wizardState.csvFile && (
-            <div className="file-info">Selected: {wizardState.csvFile.name}</div>
-          )}
+          {wizardState.csvFile && <div className="file-info">Selected: {wizardState.csvFile.name}</div>}
           <div style={{ marginTop: '1rem', padding: '1rem', background: '#f0f9ff', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-            <strong>💡 Quick Test:</strong> No CSV file? No problem! The generator will create a workflow for a sample employee dataset with columns: id, name, age, department, salary, years_experience, performance_rating
+            <strong>Quick Test:</strong> No CSV file? No problem! The generator will create a workflow for a sample employee dataset with columns: id, name, age, department, salary, years_experience, performance_rating
+          </div>
+        </div>
+      )}
+
+      {selected === 'dkNET Dataset' && (
+        <div className="data-source-config">
+          <p style={{ marginTop: 0, color: '#475569' }}>
+            Pick a curated biomedical dataset. The workflow will reference it with CSVFileScan.
+          </p>
+          <div className="options-grid">
+            {DKNET_DATASETS.map(ds => (
+              <div
+                key={ds.id}
+                className={`option-card ${wizardState.dknetDataset?.id === ds.id ? 'selected' : ''}`}
+                onClick={() => updateState({ dknetDataset: ds })}
+              >
+                <h3>{ds.name}</h3>
+                <p>{ds.description}</p>
+                <small style={{ color: '#64748b' }}>Schema: {ds.schema}</small>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -351,11 +311,7 @@ const Step3Framework: React.FC<Step3Props> = ({ selected, onSelect }) => {
       <p>Choose a methodology to structure your workflow</p>
       <div className="options-grid">
         {FRAMEWORKS.map(framework => (
-          <div
-            key={framework}
-            className={`option-card ${selected === framework ? 'selected' : ''}`}
-            onClick={() => onSelect(framework)}
-          >
+          <div key={framework} className={`option-card ${selected === framework ? 'selected' : ''}`} onClick={() => onSelect(framework)}>
             <h3>{framework}</h3>
             <p>{descriptions[framework]}</p>
           </div>
@@ -379,11 +335,7 @@ const Step4Guardrails: React.FC<Step4Props> = ({ guardrails, onToggle }) => {
         {guardrails.map(guardrail => (
           <div key={guardrail.id} className="guardrail-item">
             <label>
-              <input
-                type="checkbox"
-                checked={guardrail.enabled}
-                onChange={() => onToggle(guardrail.id)}
-              />
+              <input type="checkbox" checked={guardrail.enabled} onChange={() => onToggle(guardrail.id)} />
               <div>
                 <strong>{guardrail.name}</strong>
                 <p>{guardrail.description}</p>
